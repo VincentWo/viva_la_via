@@ -18,7 +18,7 @@ use bevy::{
     gizmos::GizmoPlugin,
     gltf::GltfPlugin,
     input::InputPlugin,
-    log::{Level, LogPlugin},
+    log::{Level, LogPlugin, debug},
     math::{FloatExt, Vec2, primitives::Rectangle},
     pbr::PbrPlugin,
     picking::DefaultPickingPlugins,
@@ -39,7 +39,7 @@ use bevy::{
     winit::{WakeUp, WinitPlugin},
 };
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct Position(f32);
 
 #[derive(Component)]
@@ -68,7 +68,7 @@ struct SpeedStats {
 #[derive(Component)]
 struct Train;
 
-const ΔT: f32 = 0.005;
+const ΔT: f32 = 0.01;
 
 fn update_speed(mut query: Query<(&mut Velocity, &SpeedStats)>) {
     for (mut v, speed_stats) in &mut query {
@@ -78,7 +78,7 @@ fn update_speed(mut query: Query<(&mut Velocity, &SpeedStats)>) {
 fn update_positions(mut query: Query<(&mut Position, &mut OldPosition, &Velocity)>) {
     for (mut pos, mut old_pos, v) in &mut query {
         old_pos.0 = pos.0;
-        pos.0 = f32::min(pos.0 + v.0 * ΔT, 160.0 / 3.6);
+        pos.0 += v.0 * ΔT;
     }
 }
 
@@ -92,7 +92,8 @@ fn update_train_displays(
 ) {
     for (mut transform, old_pos, pos) in &mut query {
         let interpolate = old_pos.0.lerp(pos.0, fixed_time.overstep_fraction());
-        // let new_translation = curve.0.sample(interpolated).unwrap().extend(1.0);
+        debug!("{interpolate}");
+        transform.translation.x = interpolate;
         // debug!(
         //     "Travelled with {}",
         //     // (transform.translation - new_translation).length() / time.delta_secs(),
@@ -151,7 +152,7 @@ fn add_trains(
         Transform::from_translation(strecke.start.extend(1.0)),
         Position(0.0),
         OldPosition(0.0),
-        // Velocity(0.0),
+        Velocity(0.0),
         SpeedStats {
             acceleration: 1.0,
             brake_speed: 1.5,
@@ -165,7 +166,7 @@ fn main() {
         .add_plugins((
             PanicHandlerPlugin,
             LogPlugin {
-                filter: "info,sim_u=trace".to_owned(),
+                filter: "info,viva_la_via=trace".to_owned(),
                 level: Level::TRACE,
                 custom_layer: |_| None,
             },
