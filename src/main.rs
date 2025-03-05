@@ -1,42 +1,23 @@
 use std::time::Duration;
 
 use bevy::{
-    a11y::AccessibilityPlugin,
-    animation::AnimationPlugin,
-    app::{App, FixedUpdate, PanicHandlerPlugin, Startup, TerminalCtrlCHandlerPlugin, Update},
-    asset::{AssetPlugin, Assets, RenderAssetUsages},
+    DefaultPlugins,
+    app::{App, FixedUpdate, Startup, Update},
+    asset::{Assets, RenderAssetUsages},
     color::Color,
-    core::{FrameCountPlugin, TaskPoolPlugin, TypeRegistrationPlugin},
-    core_pipeline::{CorePipelinePlugin, core_2d::Camera2d},
-    dev_tools::DevToolsPlugin,
-    diagnostic::DiagnosticsPlugin,
+    core_pipeline::core_2d::Camera2d,
     ecs::{
         component::Component,
         schedule::IntoSystemConfigs as _,
         system::{Commands, Query, Res, ResMut},
     },
-    gizmos::GizmoPlugin,
-    gltf::GltfPlugin,
-    input::InputPlugin,
     log::{Level, LogPlugin, debug},
     math::{FloatExt, Vec2, primitives::Rectangle},
-    pbr::PbrPlugin,
-    picking::DefaultPickingPlugins,
-    render::{
-        RenderPlugin,
-        mesh::{Mesh, Mesh2d},
-        pipelined_rendering::PipelinedRenderingPlugin,
-        texture::ImagePlugin,
-    },
-    scene::ScenePlugin,
-    sprite::{ColorMaterial, MeshMaterial2d, SpritePlugin},
-    state::app::StatesPlugin,
-    text::TextPlugin,
-    time::{Fixed, Time, TimePlugin},
-    transform::{TransformPlugin, components::Transform},
-    ui::UiPlugin,
-    window::{Window, WindowPlugin},
-    winit::{WakeUp, WinitPlugin},
+    prelude::PluginGroup as _,
+    render::mesh::{Mesh, Mesh2d},
+    sprite::{ColorMaterial, MeshMaterial2d},
+    time::{Fixed, Time},
+    transform::components::Transform,
 };
 
 #[derive(Component, Debug)]
@@ -92,7 +73,6 @@ fn update_train_displays(
 ) {
     for (mut transform, old_pos, pos) in &mut query {
         let interpolate = old_pos.0.lerp(pos.0, fixed_time.overstep_fraction());
-        debug!("{interpolate}");
         transform.translation.x = interpolate;
         // debug!(
         //     "Travelled with {}",
@@ -163,48 +143,11 @@ fn add_trains(
 
 fn main() {
     App::new()
-        .add_plugins((
-            PanicHandlerPlugin,
-            LogPlugin {
-                filter: "info,viva_la_via=trace".to_owned(),
-                level: Level::TRACE,
-                custom_layer: |_| None,
-            },
-            TaskPoolPlugin::default(),
-            TypeRegistrationPlugin,
-            FrameCountPlugin,
-            TimePlugin,
-            TransformPlugin,
-            DiagnosticsPlugin,
-            InputPlugin,
-            WindowPlugin {
-                primary_window: Some(Window::default()),
-                exit_condition: bevy::window::ExitCondition::OnPrimaryClosed,
-                close_when_requested: true,
-            },
-            AccessibilityPlugin,
-            TerminalCtrlCHandlerPlugin,
-            AssetPlugin::default(),
-            ScenePlugin,
-            WinitPlugin::<WakeUp>::default(),
-        ))
-        .add_plugins((
-            RenderPlugin::default(),
-            ImagePlugin::default(),
-            PipelinedRenderingPlugin,
-            CorePipelinePlugin,
-            SpritePlugin::default(),
-            TextPlugin,
-            UiPlugin::default(),
-            PbrPlugin::default(),
-            GltfPlugin::default(),
-            AnimationPlugin,
-            GizmoPlugin,
-            StatesPlugin,
-            DevToolsPlugin,
-            DefaultPickingPlugins,
-        ))
-        // .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.build().set(LogPlugin {
+            filter: "info,viva_la_via=trace".to_owned(),
+            level: Level::TRACE,
+            custom_layer: |_| None,
+        }))
         .insert_resource(Strecke {
             start: Vec2 {
                 x: -600.0,
