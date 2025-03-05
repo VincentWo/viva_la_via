@@ -1,0 +1,7 @@
+# /path/to/project/.cargo/config.toml
+[target.aarch64-apple-darwin]
+rustflags = [
+  # (Nightly) Make the current crate share its generic instantiations
+  "-Zshare-generics=y",
+]
+
