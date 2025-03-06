@@ -11,7 +11,7 @@ use bevy::{
         schedule::IntoSystemConfigs as _,
         system::{Commands, Query, Res, ResMut},
     },
-    log::{Level, LogPlugin, debug},
+    log::{Level, LogPlugin},
     math::{FloatExt, Vec2, primitives::Rectangle},
     prelude::PluginGroup as _,
     render::mesh::{Mesh, Mesh2d},
@@ -19,6 +19,9 @@ use bevy::{
     time::{Fixed, Time},
     transform::components::Transform,
 };
+use camera::zoom_handler;
+
+mod camera;
 
 #[derive(Component, Debug)]
 struct Position(f32);
@@ -134,7 +137,8 @@ fn add_trains(
         OldPosition(0.0),
         Velocity(0.0),
         SpeedStats {
-            acceleration: 1.0,
+            // acceleration: 1.0,
+            acceleration: 0.0,
             brake_speed: 1.5,
             max_speed: 160.0 / 3.6,
         },
@@ -158,6 +162,6 @@ fn main() {
         .insert_resource(Time::<Fixed>::from_duration(Duration::from_micros(500)))
         .add_systems(Startup, (create_strecke, add_trains))
         .add_systems(FixedUpdate, (update_speed, update_positions).chain())
-        .add_systems(Update, update_train_displays)
+        .add_systems(Update, (update_train_displays, zoom_handler))
         .run();
 }
