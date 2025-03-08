@@ -5,6 +5,8 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.15.3", features = ["bevy_dev_tools", "dynamic_linking"] }
+geo = "0.29.3"
+geo-bevy = "7.0.0"
 
 [profile.dev]
 opt-level = 1

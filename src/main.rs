@@ -1,24 +1,13 @@
-use std::time::Duration;
+use std::{default, time::Duration};
 
-use bevy::{
-    DefaultPlugins,
-    app::{App, FixedUpdate, Startup, Update},
-    asset::{Assets, RenderAssetUsages},
-    color::Color,
-    core_pipeline::core_2d::Camera2d,
-    ecs::{
-        component::Component,
-        schedule::IntoSystemConfigs as _,
-        system::{Commands, Query, Res, ResMut},
-    },
-    log::{Level, LogPlugin, debug},
-    math::{FloatExt, Vec2, primitives::Rectangle},
-    prelude::PluginGroup as _,
-    render::mesh::{Mesh, Mesh2d},
-    sprite::{ColorMaterial, MeshMaterial2d},
-    time::{Fixed, Time},
-    transform::components::Transform,
+use bevy::{log::{Level, LogPlugin}, prelude::*};
+
+use geo::{
+    Coord, Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, LineString, Point
 };
+
+use geo_bevy::line_string_to_mesh;
+
 
 #[derive(Component, Debug)]
 struct Position(f32);
@@ -29,14 +18,15 @@ struct OldPosition(f32);
 #[derive(Component)]
 struct Velocity(f32);
 
-#[derive(bevy::ecs::system::Resource)]
-struct Strecke {
-    start: Vec2,
-    parts: Vec<Part>,
-}
+#[derive(Component)]
+struct Blockabschnitt(LineString<f32>);
 
-enum Part {
-    Straight { length: f32 },
+#[derive(Component)]
+enum TrainCommand {
+    Accelerate,
+    Move,
+    Break,
+    Custom(f32),
 }
 
 #[derive(Component)]
@@ -51,9 +41,32 @@ struct Train;
 
 const ΔT: f32 = 0.01;
 
-fn update_speed(mut query: Query<(&mut Velocity, &SpeedStats)>) {
-    for (mut v, speed_stats) in &mut query {
-        v.0 = f32::min(v.0 + speed_stats.acceleration * ΔT, speed_stats.max_speed);
+fn update_train_command(mut query: Query<(&mut TrainCommand, &Position, &Blockabschnitt, &SpeedStats, &Velocity)>) {
+    for (mut command, pos, block, speed_stats, velocity) in &mut query {
+        let breaking_distance = velocity.0.powi(2) / (2.0 * speed_stats.brake_speed);
+        let remaining_distance = block.0.length::<Euclidean>() - pos.0;
+        if remaining_distance < breaking_distance {
+            *command = TrainCommand::Break;
+        } else {
+            *command = TrainCommand::Accelerate;
+        }
+    }
+}
+
+fn update_speed(mut query: Query<(&mut Velocity, &SpeedStats ,&TrainCommand)>) {
+    for (mut v, speed_stats, train_command) in &mut query {
+        match train_command {
+            TrainCommand::Accelerate => {
+                v.0 = f32::min(v.0 + speed_stats.acceleration * ΔT, speed_stats.max_speed);
+            }
+            TrainCommand::Break => {
+                v.0 = f32::max(v.0 - speed_stats.brake_speed * ΔT, 0.0);
+            }
+            TrainCommand::Move => {}
+            TrainCommand::Custom(acc) => {
+                v.0 = f32::min(v.0 + acc * ΔT, speed_stats.max_speed);
+            }
+        }
     }
 }
 fn update_positions(mut query: Query<(&mut Position, &mut OldPosition, &Velocity)>) {
@@ -69,16 +82,15 @@ fn update_positions(mut query: Query<(&mut Position, &mut OldPosition, &Velocity
 
 fn update_train_displays(
     fixed_time: Res<Time<Fixed>>,
-    mut query: Query<(&mut Transform, &OldPosition, &Position)>,
+    mut query: Query<(&mut Transform, &OldPosition, &Position, &Blockabschnitt)>,
 ) {
-    for (mut transform, old_pos, pos) in &mut query {
-        let interpolate = old_pos.0.lerp(pos.0, fixed_time.overstep_fraction());
-        transform.translation.x = interpolate;
-        // debug!(
-        //     "Travelled with {}",
-        //     // (transform.translation - new_translation).length() / time.delta_secs(),
-        // );
-        // transform.translation = new_translation;
+    for (mut transform, old_pos, pos, block) in &mut query {
+        let block_length = block.0.length::<Euclidean>();
+        let old_pos_coords = block.0.line_interpolate_point(f32::min(old_pos.0 / block_length, 1.0)).unwrap_or(Point::new(0.0, 0.0));
+        let pos_coords = block.0.line_interpolate_point(f32::min(pos.0 / block_length, 1.0)).unwrap_or(Point::new(0.0, 0.0));
+        
+        let interpolate = Euclidean::point_at_ratio_between(old_pos_coords, pos_coords, fixed_time.overstep_fraction());
+        transform.translation = Into::<Vec2>::into(interpolate.x_y()).extend(0.0);
     }
 }
 
@@ -86,58 +98,55 @@ fn create_strecke(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
-    strecke: Res<Strecke>,
 ) {
-    let vertices: Vec<_> = strecke
-        .parts
-        .iter()
-        .scan(strecke.start, |last_pos, part| {
-            last_pos.x += match part {
-                Part::Straight { length } => length,
-            };
-            Some([last_pos.x, last_pos.y, 0.0])
-        })
-        .collect();
-    let mesh = Mesh::new(
-        bevy::render::mesh::PrimitiveTopology::LineStrip,
-        RenderAssetUsages::RENDER_WORLD,
-    )
-    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertices);
-
-    let mesh = meshes.add(mesh);
+    let line = LineString(vec![
+        Coord{x: 0.0, y: 0.0},
+        Coord{x: 20.0, y: 10.0},
+        Coord{x: 40.0, y: 10.0},
+        Coord{x: 60.0, y: 0.0},
+        Coord{x: 60.0, y: 20.0},
+        Coord{x: 40.0, y: 25.0},
+        Coord{x: 20.0, y: 20.0},
+    ]);
 
     let color = Color::hsl(30.0, 1.0, 0.57);
+    let mesh = line_string_to_mesh(line.clone()).unwrap();
+
+    
 
     commands.spawn((
-        Mesh2d(mesh),
+        Mesh2d(meshes.add(mesh)),
         MeshMaterial2d(materials.add(color)),
-        Transform::from_xyz(0.0, 0.0, -1.0),
+        Blockabschnitt(line),
     ));
 }
 
 fn add_trains(
     mut commands: Commands,
-    strecke: Res<Strecke>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    strecke: Query<&Blockabschnitt>,
 ) {
     commands.spawn(Camera2d);
 
+    let strecke = strecke.get_single().unwrap();
     let shape = meshes.add(Rectangle::new(30.0, 15.0));
     let color = Color::hsl(55.0, 1.0, 0.57);
     commands.spawn((
         Train,
         Mesh2d(shape),
         MeshMaterial2d(materials.add(color)),
-        Transform::from_translation(strecke.start.extend(1.0)),
+        Transform::from_translation(Into::<Vec2>::into(strecke.0.0[0].x_y()).extend(0.0)),
         Position(0.0),
         OldPosition(0.0),
         Velocity(0.0),
         SpeedStats {
-            acceleration: 1.0,
-            brake_speed: 1.5,
-            max_speed: 160.0 / 3.6,
+            acceleration: 0.1,
+            brake_speed: 0.5,
+            max_speed: 10.0 / 3.6,
         },
+        Blockabschnitt(strecke.0.clone()),
+        TrainCommand::Move,
     ));
 }
 
@@ -148,16 +157,16 @@ fn main() {
             level: Level::TRACE,
             custom_layer: |_| None,
         }))
-        .insert_resource(Strecke {
-            start: Vec2 {
-                x: -600.0,
-                y: -300.0,
-            },
-            parts: vec![Part::Straight { length: 1000.0 }],
-        })
+        // .insert_resource(Strecke {
+        //     start: Vec2 {
+        //         x: -600.0,
+        //         y: -300.0,
+        //     },
+        //     parts: vec![Part::Straight { length: 1000.0 }],
+        // })
         .insert_resource(Time::<Fixed>::from_duration(Duration::from_micros(500)))
-        .add_systems(Startup, (create_strecke, add_trains))
-        .add_systems(FixedUpdate, (update_speed, update_positions).chain())
+        .add_systems(Startup, (create_strecke, add_trains).chain())
+        .add_systems(FixedUpdate, (update_train_command, update_speed, update_positions).chain())
         .add_systems(Update, update_train_displays)
         .run();
 }
