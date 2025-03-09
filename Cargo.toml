@@ -5,8 +5,12 @@ edition = "2024"
 
 [dependencies]
 bevy = { version = "0.15.3", features = ["bevy_dev_tools", "dynamic_linking"] }
+bevy_egui = "0.32.0"
+bevy_metrics_dashboard = { version = "0.4.0", features = ["render_metrics"] }
 geo = "0.29.3"
 geo-bevy = "7.0.0"
+itertools = "0.14.0"
+metrics = "0.24.1"
 
 [profile.dev]
 opt-level = 1
