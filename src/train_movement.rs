@@ -1,35 +1,14 @@
-use std::{default, time::Duration};
+use std::time::Duration;
 
-use bevy::{
-    ecs::query,
-    log::{Level, LogPlugin},
-    prelude::*,
-    sprite::Anchor,
-};
+use bevy::{log::tracing_subscriber::field::debug, prelude::*, sprite::Anchor};
 
-use geo::{
-    Coord, Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, LineString, Point,
-    Scale, Translate,
-};
+use geo::{Euclidean, Length as _};
 
-use geo_bevy::line_string_to_mesh;
-
-use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_metrics_dashboard::{
-    CoreMetricsPlugin, DashboardPlugin, DashboardWindow, RegistryPlugin, RenderMetricsPlugin,
-};
 use itertools::Itertools;
-use metrics::{
-    Unit, counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
-};
+use metrics::gauge;
 
 use crate::infra::{
-    ConsecutiveLines,
-    LeavingSegment,
-    EnteringSegment,
-    Segment,
-    SegmentTrain,
+    ConsecutiveLines, EnteringSegment, LeavingSegment, Segment, SegmentTrain, create_strecke,
 };
 
 #[derive(Component, Debug, Default, Reflect)]
@@ -216,8 +195,8 @@ fn update_positions(
 
 fn add_trains(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    meshes: ResMut<Assets<Mesh>>,
+    materials: ResMut<Assets<ColorMaterial>>,
     strecke: Res<ConsecutiveLines>,
     mut blockabschnitt: Query<(&Segment, &mut SegmentTrain)>,
 ) {
@@ -278,12 +257,11 @@ pub struct TrainMovementPlugin;
 
 impl Plugin for TrainMovementPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .insert_resource(Time::<Fixed>::from_duration(Duration::from_micros(500)))
-        .add_systems(Startup, add_trains)
-        .add_systems(
-            FixedUpdate,
-            (update_train_command, update_speed, update_positions).chain(),
-        );
+        app.insert_resource(Time::<Fixed>::from_duration(Duration::from_micros(500)))
+            .add_systems(Startup, add_trains.after(create_strecke))
+            .add_systems(
+                FixedUpdate,
+                (update_train_command, update_speed, update_positions).chain(),
+            );
     }
 }

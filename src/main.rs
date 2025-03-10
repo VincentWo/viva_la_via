@@ -1,59 +1,27 @@
-use std::{default, time::Duration};
-
 use bevy::{
-    ecs::query,
     log::{Level, LogPlugin},
     prelude::*,
-    sprite::Anchor,
 };
-
-use geo::{
-    Coord, Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, LineString, Point,
-    Scale, Translate,
-};
-
-use geo_bevy::line_string_to_mesh;
 
 use bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_metrics_dashboard::{
     CoreMetricsPlugin, DashboardPlugin, DashboardWindow, RegistryPlugin, RenderMetricsPlugin,
 };
-use itertools::Itertools;
-use metrics::{
-    Unit, counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
-};
+use metrics::{Unit, describe_gauge};
 
 mod infra;
-use crate::infra::{
-    InfraPlugin,
-    ConsecutiveLines,
-    LeavingSegment,
-    EnteringSegment,
-    Segment,
-    SegmentTrain,
-    BlockColors
-};
+use crate::infra::InfraPlugin;
 
 mod train_movement;
-use crate::train_movement::{
-    TrainMovementPlugin,
-};
+use crate::train_movement::TrainMovementPlugin;
 
 mod display;
-use crate::display::{
-    TrainDisplayPlugin
-};
-
-
-
-
+use crate::display::TrainDisplayPlugin;
 
 // fn draw_curve(curve: Res<Curve>, mut gizmos: Gizmos) {
 //     gizmos.linestrip_2d(curve.0.samples(100).unwrap(), Color::hsv(10.0, 0.89, 0.46));
 // }
-
-
 
 fn create_dashboard(mut commands: Commands) {
     commands.spawn(DashboardWindow::new("Metrics Dashboard"));
@@ -80,8 +48,6 @@ fn main() {
         .add_plugins(InfraPlugin)
         .add_plugins(TrainMovementPlugin)
         .add_plugins(TrainDisplayPlugin)
-        .add_systems(
-            Startup, create_dashboard,
-        )
+        .add_systems(Startup, create_dashboard)
         .run();
 }

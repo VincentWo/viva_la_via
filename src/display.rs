@@ -1,45 +1,12 @@
+use bevy::prelude::*;
 
-use bevy::{
-    ecs::query,
-    log::{Level, LogPlugin},
-    prelude::*,
-    sprite::Anchor,
-};
+use geo::{Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, Point};
 
-use geo::{
-    Coord, Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, LineString, Point,
-    Scale, Translate,
-};
-
-use geo_bevy::line_string_to_mesh;
-
-use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_metrics_dashboard::{
-    CoreMetricsPlugin, DashboardPlugin, DashboardWindow, RegistryPlugin, RenderMetricsPlugin,
-};
 use itertools::Itertools;
-use metrics::{
-    Unit, counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
-};
 
+use crate::infra::{BlockColors, Segment, SegmentTrain};
 
-use crate::infra::{
-    InfraPlugin,
-    ConsecutiveLines,
-    LeavingSegment,
-    EnteringSegment,
-    Segment,
-    SegmentTrain,
-    BlockColors
-};
-
-use crate::train_movement::{
-    TrainMovementPlugin,
-    OldPosition,
-    Position,
-    TrainSchedule
-};
+use crate::train_movement::{OldPosition, Position, TrainSchedule};
 
 fn update_train_displays(
     fixed_time: Res<Time<Fixed>>,

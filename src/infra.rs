@@ -1,28 +1,10 @@
-use std::{default, time::Duration};
+use bevy::{log::tracing_subscriber::field::debug, prelude::*};
 
-use bevy::{
-    ecs::query,
-    log::{Level, LogPlugin},
-    prelude::*,
-    sprite::Anchor,
-};
-
-use geo::{
-    Coord, Euclidean, InterpolatePoint, Length as _, LineInterpolatePoint, LineString, Point,
-    Scale, Translate,
-};
+use geo::{Coord, LineString, Scale};
 
 use geo_bevy::line_string_to_mesh;
 
-use bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy_metrics_dashboard::{
-    CoreMetricsPlugin, DashboardPlugin, DashboardWindow, RegistryPlugin, RenderMetricsPlugin,
-};
 use itertools::Itertools;
-use metrics::{
-    Unit, counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram,
-};
 
 #[derive(Resource, Reflect)]
 pub struct ConsecutiveLines(pub Vec<Entity>);
@@ -73,7 +55,7 @@ fn entering_segment(
     segment_train.0 = Some(trigger.0);
 }
 
-fn create_strecke(
+pub fn create_strecke(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut commands: Commands,
