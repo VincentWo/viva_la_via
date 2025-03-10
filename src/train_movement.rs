@@ -5,11 +5,16 @@ use bevy::{log::tracing_subscriber::field::debug, prelude::*, sprite::Anchor};
 use geo::{Euclidean, Length as _};
 
 use itertools::Itertools;
-use metrics::gauge;
+use metrics::{describe_gauge, gauge, Unit};
 
 use crate::infra::{
     ConsecutiveLines, EnteringSegment, LeavingSegment, Segment, SegmentTrain, create_strecke,
 };
+
+const DELTA_T: f32 = 1.;
+
+#[derive(Resource, Reflect)]
+pub struct RealTime(pub Duration);
 
 #[derive(Component, Debug, Default, Reflect)]
 pub struct Position(pub f32);
@@ -71,8 +76,6 @@ impl TrainSchedule {
     }
 }
 
-const DELTA_T: f32 = 0.01;
-
 fn update_train_command(
     mut query: Query<(
         &mut TrainCommand,
@@ -83,8 +86,17 @@ fn update_train_command(
         &Name,
     )>,
     blockabschnitt: Query<(&Segment, &SegmentTrain)>,
+    mut started: Local<bool>,
+    key: Res<ButtonInput<KeyCode>>,
 ) {
-    query.par_iter_mut().for_each(
+    if key.just_pressed(KeyCode::Space) {
+        *started = true;
+    }
+    if !*started {
+        return;
+    }
+
+    query.iter_mut().for_each(
         |(mut command, pos, schedule, speed_stats, velocity, name): (
             Mut<'_, TrainCommand>,
             &Position,
@@ -109,6 +121,10 @@ fn update_train_command(
                 }
             };
             let remaining_distance = block.0.length::<Euclidean>() - pos.0;
+            gauge!(format!("{}_train_speed", name)).set(velocity.0);
+            gauge!(format!("{}_train_position", name)).set(pos.0);
+            gauge!(format!("{}_remaining_distance", name)).set(remaining_distance);
+
             if next_block_free {
                 *command = TrainCommand::Accelerate
             } else if remaining_distance - rel_pos - rel_speed * DELTA_T <= breaking_distance + 10.
@@ -124,15 +140,7 @@ fn update_train_command(
 
 fn update_speed(
     mut query: Query<(&mut Velocity, &SpeedStats, &TrainCommand)>,
-    mut started: Local<bool>,
-    key: Res<ButtonInput<KeyCode>>,
 ) {
-    if key.just_pressed(KeyCode::Space) {
-        *started = !*started;
-    }
-    if !*started {
-        return;
-    }
     query
         .par_iter_mut()
         .for_each(|(mut v, speed_stats, train_command)| match train_command {
@@ -188,19 +196,20 @@ fn update_positions(
             }
             old_pos.0 = old_pos_f;
             pos.0 = next_pos;
-            gauge!("train_speed").set(v.0);
-            gauge!("train_position").set(pos.0);
         });
+}
+
+fn update_time(
+    mut real_time: ResMut<RealTime>,
+) {
+    real_time.0 += Duration::from_millis((DELTA_T*1000.) as u64);
 }
 
 fn add_trains(
     mut commands: Commands,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<ColorMaterial>>,
     strecke: Res<ConsecutiveLines>,
     mut blockabschnitt: Query<(&Segment, &mut SegmentTrain)>,
 ) {
-    commands.spawn(Camera2d);
 
     let (first_segment, mut first_segment_train) = blockabschnitt.get_mut(strecke.0[0]).unwrap();
     let train1 = commands
@@ -215,9 +224,9 @@ fn add_trains(
             },
             Transform::from_translation(Into::<Vec2>::into(first_segment.0[0].x_y()).extend(0.0)),
             SpeedStats {
-                acceleration: 0.1,
-                brake_speed: 0.5,
-                max_speed: 40.0 / 3.6,
+                acceleration: 0.8,
+                brake_speed: 0.8,
+                max_speed: 100.0 / 3.6,
             },
             TrainSchedule {
                 segments: strecke.0.clone(),
@@ -226,6 +235,7 @@ fn add_trains(
         ))
         .id();
     first_segment_train.0 = Some(train1);
+
 
     let (second_segment, mut second_segment_train) = blockabschnitt.get_mut(strecke.0[1]).unwrap();
     let train2 = commands
@@ -240,9 +250,9 @@ fn add_trains(
             },
             Transform::from_translation(Into::<Vec2>::into(second_segment.0[0].x_y()).extend(0.0)),
             SpeedStats {
-                acceleration: 0.1,
+                acceleration: 0.5,
                 brake_speed: 0.5,
-                max_speed: 10.0 / 3.6,
+                max_speed: 30.0 / 3.6,
             },
             TrainSchedule {
                 segments: strecke.0.clone(),
@@ -251,17 +261,22 @@ fn add_trains(
         ))
         .id();
     second_segment_train.0 = Some(train2);
+
 }
 
 pub struct TrainMovementPlugin;
 
 impl Plugin for TrainMovementPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Time::<Fixed>::from_duration(Duration::from_micros(500)))
+        app.insert_resource(Time::<Fixed>::from_duration(Duration::from_millis(50)))
             .add_systems(Startup, add_trains.after(create_strecke))
+            .insert_resource(RealTime(Duration::from_secs(0)))
             .add_systems(
                 FixedUpdate,
-                (update_train_command, update_speed, update_positions).chain(),
-            );
+                (update_train_command, update_speed, update_positions, update_time).chain(),
+            )
+            .register_type::<Velocity>()
+            .register_type::<Position>()
+            .register_type::<OldPosition>();
     }
 }

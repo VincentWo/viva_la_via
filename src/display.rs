@@ -6,7 +6,23 @@ use itertools::Itertools;
 
 use crate::infra::{BlockColors, Segment, SegmentTrain};
 
-use crate::train_movement::{OldPosition, Position, TrainSchedule};
+use crate::train_movement::{OldPosition, Position, TrainSchedule, RealTime};
+
+#[derive(Component)]
+pub struct TimeText;
+
+fn setup_time_text(mut commands: Commands) {
+    commands.spawn((
+        Text::new("Time: 00:00"),
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(10.0),
+            right: Val::Px(10.0),
+            ..default()
+        },
+        TimeText
+    ));
+}
 
 fn update_train_displays(
     fixed_time: Res<Time<Fixed>>,
@@ -42,6 +58,18 @@ fn update_train_displays(
         });
 }
 
+fn update_time_display(
+    real_time: Res<RealTime>,
+    mut time_text: Query<&mut Text, With<TimeText>>,
+) {
+    time_text.iter_mut().for_each(|mut text| {
+        let time = real_time.0;
+        let minutes = time.as_secs() / 60;
+        let seconds = time.as_secs() % 60;
+        text.0 = format!("Time: {:02}:{:02}", minutes, seconds);
+    });
+}
+
 fn update_block_display(
     mut query: Query<(&Segment, &SegmentTrain, &mut MeshMaterial2d<ColorMaterial>)>,
     blah: Res<BlockColors>,
@@ -59,6 +87,8 @@ pub struct TrainDisplayPlugin;
 
 impl Plugin for TrainDisplayPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (update_train_displays, update_block_display));
+        app
+        .add_systems(Startup, setup_time_text)
+        .add_systems(Update, (update_train_displays, update_block_display, update_time_display));
     }
 }

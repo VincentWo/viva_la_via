@@ -19,6 +19,9 @@ use crate::train_movement::TrainMovementPlugin;
 mod display;
 use crate::display::TrainDisplayPlugin;
 
+mod camera;
+use crate::camera::CameraPlugin;
+
 // fn draw_curve(curve: Res<Curve>, mut gizmos: Gizmos) {
 //     gizmos.linestrip_2d(curve.0.samples(100).unwrap(), Color::hsv(10.0, 0.89, 0.46));
 // }
@@ -28,8 +31,12 @@ fn create_dashboard(mut commands: Commands) {
 }
 
 fn describe_metrics() {
-    describe_gauge!("train_speed", Unit::Count, "Speed of trains");
-    describe_gauge!("train_position", Unit::Count, "Position of trains");
+    describe_gauge!("Train2_train_speed", Unit::Count, "Speed of train 2");
+    describe_gauge!("Train2_train_position", Unit::Count, "Position of train 2");
+    describe_gauge!("remaining_distance", Unit::Count, "Remaining distance of Train 2");
+    describe_gauge!("Train1_train_speed", Unit::Count, "Speed of train 1");
+    describe_gauge!("Train1_train_position", Unit::Count, "Position of train 1");
+    describe_gauge!("Train1_remaining_distance", Unit::Count, "Remaining distance of Train 1");
 }
 
 fn main() {
@@ -48,6 +55,7 @@ fn main() {
         .add_plugins(InfraPlugin)
         .add_plugins(TrainMovementPlugin)
         .add_plugins(TrainDisplayPlugin)
-        .add_systems(Startup, create_dashboard)
+        .add_plugins(CameraPlugin)
+        .add_systems(Startup, (create_dashboard, describe_metrics))
         .run();
 }
